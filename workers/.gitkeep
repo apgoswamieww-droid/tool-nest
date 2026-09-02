@@ -1,0 +1,8 @@
+// This directory will hold Web Workers for heavy client-side computations.
+// Example: PDF processing, image manipulation, large data transformations.
+//
+// Workers run off the main thread, keeping the UI responsive.
+// Files in this directory should be named descriptively:
+//   - pdf-processor.worker.ts
+//   - image-resize.worker.ts
+//   - csv-parser.worker.ts
