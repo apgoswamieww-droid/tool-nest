@@ -1,0 +1,123 @@
+// ──────────────────────────────────────────────────────
+// ToolNest — Prisma Schema
+// Neon Serverless PostgreSQL + Prisma ORM
+// ──────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ──────────────────────────────────────────────────────
+// USER
+// ──────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  name      String?
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  favorites         FavoriteTool[]
+  savedCalculations SavedCalculation[]
+  preferences       UserPreference?
+  usageHistory      ToolUsageHistory[]
+
+  @@map("users")
+}
+
+// ──────────────────────────────────────────────────────
+// FAVORITE TOOLS
+// ──────────────────────────────────────────────────────
+
+model FavoriteTool {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  toolSlug  String   @db.VarChar(100)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Unique constraint: one favorite per user per tool
+  @@unique([userId, toolSlug])
+  // Index for fast lookups
+  @@index([userId])
+  @@index([toolSlug])
+  @@map("favorite_tools")
+}
+
+// ──────────────────────────────────────────────────────
+// SAVED CALCULATIONS
+// ──────────────────────────────────────────────────────
+
+model SavedCalculation {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  toolSlug  String   @db.VarChar(100)
+  title     String?  @db.VarChar(200)
+  toolVersion String? @db.VarChar(20)
+  input     Json     @default("{}")
+  result    Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Indexes for common queries
+  @@index([userId])
+  @@index([userId, toolSlug])
+  @@index([createdAt(sort: Desc)])
+  @@map("saved_calculations")
+}
+
+// ──────────────────────────────────────────────────────
+// USER PREFERENCES
+// ──────────────────────────────────────────────────────
+
+model UserPreference {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  theme     String?  @default("system") @db.VarChar(20)
+  language  String?  @default("en") @db.VarChar(10)
+  defaults  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+// ──────────────────────────────────────────────────────
+// TOOL USAGE HISTORY
+// ──────────────────────────────────────────────────────
+
+model ToolUsageHistory {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  toolSlug  String   @db.VarChar(100)
+  action    String   @db.VarChar(50)
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Indexes for common queries
+  @@index([userId])
+  @@index([userId, toolSlug])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([toolSlug])
+  @@map("tool_usage_history")
+}

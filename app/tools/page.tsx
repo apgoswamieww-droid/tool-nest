@@ -3,14 +3,30 @@ import { getAllTools, searchTools } from "@/lib/registry";
 import { ToolGrid } from "@/components/tool/ToolGrid";
 import { SearchBar } from "@/components/tool/SearchBar";
 import { CATEGORY_LIST } from "@/lib/categories";
-import { SITE_NAME } from "@/lib/utils";
+import { SITE_NAME, SITE_URL } from "@/lib/utils";
+import { generateBreadcrumbSchema } from "@/lib/seo";
 import { Filter } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = {
   title: `All Tools — ${SITE_NAME}`,
-  description: `Browse all free online tools and calculators available on ${SITE_NAME}.`,
+  description: `Browse all free online tools and calculators available on ${SITE_NAME}. Fast, free, and private.`,
+  alternates: {
+    canonical: "https://toolnest.io/tools",
+  },
+  openGraph: {
+    title: `All Tools — ${SITE_NAME}`,
+    description: `Browse all free online tools and calculators available on ${SITE_NAME}.`,
+    url: "https://toolnest.io/tools",
+    siteName: SITE_NAME,
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `All Tools — ${SITE_NAME}`,
+    description: `Browse all free online tools and calculators available on ${SITE_NAME}.`,
+  },
 };
 
 interface ToolsPageProps {
@@ -27,8 +43,14 @@ export default async function ToolsPage({ searchParams }: ToolsPageProps) {
     ? tools.filter((t) => t.category === category)
     : tools;
 
+  const breadcrumbSchema = generateBreadcrumbSchema([
+    { name: "Home", url: SITE_URL },
+    { name: "Tools", url: `${SITE_URL}/tools` },
+  ]);
+
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">

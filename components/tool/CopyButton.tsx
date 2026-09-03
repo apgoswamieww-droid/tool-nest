@@ -4,6 +4,7 @@ import * as React from "react";
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { analytics } from "@/lib/analytics";
 
 interface CopyButtonProps {
   text: string;
@@ -11,6 +12,8 @@ interface CopyButtonProps {
   label?: string;
   size?: "default" | "sm" | "lg" | "icon";
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+  /** Tool slug for analytics tracking */
+  toolSlug?: string;
 }
 
 export function CopyButton({
@@ -19,6 +22,7 @@ export function CopyButton({
   label = "Copy",
   size = "sm",
   variant = "outline",
+  toolSlug,
 }: CopyButtonProps) {
   const [copied, setCopied] = React.useState(false);
 
@@ -28,6 +32,11 @@ export function CopyButton({
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+
+      // Track result copied
+      if (toolSlug) {
+        analytics.resultCopied(toolSlug, text.length);
+      }
     } catch {
       // Fallback for older browsers
       const textarea = document.createElement("textarea");
@@ -40,8 +49,13 @@ export function CopyButton({
       document.body.removeChild(textarea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+
+      // Track result copied (fallback path)
+      if (toolSlug) {
+        analytics.resultCopied(toolSlug, text.length);
+      }
     }
-  }, [text]);
+  }, [text, toolSlug]);
 
   return (
     <Button

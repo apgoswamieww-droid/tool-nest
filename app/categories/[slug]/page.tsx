@@ -4,7 +4,8 @@ import Link from "next/link";
 import { ArrowLeft, ChevronRight, HelpCircle, ExternalLink } from "lucide-react";
 import { getCategory, CATEGORY_LIST, CATEGORY_REGISTRY } from "@/lib/categories";
 import { getToolsByCategory } from "@/lib/registry";
-import { getCategoryMetadata } from "@/lib/seo";
+import { getCategoryMetadata, generateCategoryBreadcrumbs, generateFaqSchema } from "@/lib/seo";
+import { SITE_URL } from "@/lib/utils";
 import { ToolGrid } from "@/components/tool/ToolGrid";
 import { ToolCard } from "@/components/tool/ToolCard";
 import { CategoryCard } from "@/components/tool/CategoryCard";
@@ -46,32 +47,52 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     .map((s) => CATEGORY_REGISTRY[s])
     .filter(Boolean);
 
-  // JSON-LD structured data
-  const jsonLd = {
+  // JSON-LD: CollectionPage + ItemList
+  const collectionSchema = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     name: `${category.name} — Free Online Tools`,
     description: category.description,
-    url: `https://toolnest.io/categories/${category.slug}`,
+    url: `${SITE_URL}/categories/${category.slug}`,
     mainEntity: {
       "@type": "ItemList",
       itemListElement: tools.map((tool, i) => ({
         "@type": "ListItem",
         position: i + 1,
         name: tool.name,
-        url: `https://toolnest.io/tools/${tool.slug}`,
+        url: `${SITE_URL}/tools/${tool.slug}`,
         description: tool.description,
       })),
     },
   };
 
+  // JSON-LD: BreadcrumbList
+  const breadcrumbSchema = generateCategoryBreadcrumbs(category);
+
+  // JSON-LD: FAQPage (if category has FAQ)
+  const faqSchema = category.faq ? generateFaqSchema(category.faq) : null;
+
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-      {/* JSON-LD */}
+      {/* JSON-LD: BreadcrumbList */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
+
+      {/* JSON-LD: CollectionPage */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionSchema) }}
+      />
+
+      {/* JSON-LD: FAQPage */}
+      {faqSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        />
+      )}
 
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground mb-6 flex-wrap" aria-label="Breadcrumb">

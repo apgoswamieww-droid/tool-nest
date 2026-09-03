@@ -31,3 +31,6 @@ export { ToolCard } from "./tool/ToolCard";
 export { ToolGrid } from "./tool/ToolGrid";
 export { CategoryCard } from "./tool/CategoryCard";
 export { SearchBar } from "./tool/SearchBar";
+
+// Analytics
+export { AnalyticsProvider, useAnalytics, PageViewTracker, analytics } from "./tool/AnalyticsProvider";

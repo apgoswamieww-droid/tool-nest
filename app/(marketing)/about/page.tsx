@@ -1,17 +1,21 @@
 import type { Metadata } from "next";
 import { Wrench, Shield, Zap, Heart } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { getStaticPageMetadata } from "@/lib/seo";
+import { getStaticPageMetadata, generateStaticBreadcrumbs } from "@/lib/seo";
 import { SITE_NAME } from "@/lib/utils";
 
 export const metadata: Metadata = getStaticPageMetadata(
   "About",
-  `Learn about ${SITE_NAME} — a free, privacy-focused collection of online tools and calculators.`
+  `Learn about ${SITE_NAME} — a free, privacy-focused collection of online tools and calculators.`,
+  "/about"
 );
 
 export default function AboutPage() {
+  const breadcrumbSchema = generateStaticBreadcrumbs("About", "/about");
+
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
         About {SITE_NAME}
       </h1>
