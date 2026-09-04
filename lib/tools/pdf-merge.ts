@@ -1,7 +1,9 @@
 /**
  * PDF Merger — combines multiple PDF files into one.
- * Client-side implementation using raw PDF structure manipulation.
+ * Client-side implementation using pdf-lib.
  */
+
+import { PDFDocument } from "pdf-lib";
 
 export interface MergeResult {
   success: boolean;
@@ -9,80 +11,98 @@ export interface MergeResult {
   pageCount: number;
   fileSize: number;
   fileSizeFormatted: string;
+  /** The merged PDF as a downloadable blob (present on success). */
+  blob?: Blob;
   error?: string;
+}
+
+function failure(error: string): MergeResult {
+  return {
+    success: false,
+    fileName: "",
+    pageCount: 0,
+    fileSize: 0,
+    fileSizeFormatted: "",
+    error,
+  };
 }
 
 /**
  * Merge multiple PDF files into a single PDF.
- * This is a simplified implementation that works for basic PDFs.
+ * Uses pdf-lib so the output is a valid PDF with correct cross-reference
+ * tables, page counts, and object offsets (raw byte concatenation would
+ * produce a corrupt file for most real-world PDFs).
  */
 export async function mergePdfs(files: File[]): Promise<MergeResult> {
   if (files.length === 0) {
-    return { success: false, fileName: "", pageCount: 0, fileSize: 0, fileSizeFormatted: "", error: "No files provided" };
+    return failure("No files provided");
   }
 
-  if (files.length === 1) {
-    // Single file — just return it
-    const file = files[0];
-    return {
-      success: true,
-      fileName: file.name.replace(".pdf", "-merged.pdf"),
-      pageCount: await countPdfPages(file),
-      fileSize: file.size,
-      fileSizeFormatted: formatFileSize(file.size),
-    };
-  }
-
-  // For multiple files, we create a merged output
-  // This simplified version concatenates the raw PDF objects
   try {
-    const buffers = await Promise.all(files.map((f) => f.arrayBuffer()));
-    const pdfs = buffers.map((b) => new Uint8Array(b));
+    if (files.length === 1) {
+      // Single file — pass it through unchanged, just renamed.
+      const file = files[0];
+      return {
+        success: true,
+        fileName: file.name.replace(/\.pdf$/i, "") + "-merged.pdf",
+        pageCount: await countPdfPages(file),
+        fileSize: file.size,
+        fileSizeFormatted: formatFileSize(file.size),
+        blob: file, // File is a Blob
+      };
+    }
 
-    // Count total pages
+    // Multiple files — copy every page into a fresh document.
+    const merged = await PDFDocument.create();
     let totalPages = 0;
-    for (const pdf of pdfs) {
-      const text = new TextDecoder("latin1").decode(pdf);
-      const pageMatches = text.match(/\/Type\s*\/Page\b(?!s)/g);
-      totalPages += pageMatches ? pageMatches.length : 0;
+
+    for (const file of files) {
+      try {
+        const src = await PDFDocument.load(await file.arrayBuffer(), {
+          ignoreEncryption: true,
+        });
+        const pages = await merged.copyPages(src, src.getPageIndices());
+        pages.forEach((page) => merged.addPage(page));
+        totalPages += pages.length;
+      } catch {
+        return failure(
+          `"${file.name}" could not be read — it may be corrupted or password-protected.`
+        );
+      }
     }
 
-    // Simple concatenation approach (works for basic PDFs)
-    // For production, use pdf-lib or similar
-    const totalSize = pdfs.reduce((sum, p) => sum + p.length, 0);
-    const merged = new Uint8Array(totalSize);
-    let offset = 0;
-    for (const pdf of pdfs) {
-      merged.set(pdf, offset);
-      offset += pdf.length;
-    }
-
-    const blob = new Blob([merged], { type: "application/pdf" });
+    const bytes = await merged.save();
+    // `.slice()` copies into a fresh ArrayBuffer — required for BlobPart typing.
+    const blob = new Blob([bytes.slice()], { type: "application/pdf" });
+    const firstName = files[0].name.replace(/\.pdf$/i, "");
 
     return {
       success: true,
-      fileName: "merged-document.pdf",
+      fileName: `${firstName}-merged.pdf`,
       pageCount: totalPages,
       fileSize: blob.size,
       fileSizeFormatted: formatFileSize(blob.size),
+      blob,
     };
   } catch (e) {
-    return {
-      success: false,
-      fileName: "",
-      pageCount: 0,
-      fileSize: 0,
-      fileSizeFormatted: "",
-      error: e instanceof Error ? e.message : "Failed to merge PDFs",
-    };
+    return failure(e instanceof Error ? e.message : "Failed to merge PDFs");
   }
 }
 
 async function countPdfPages(file: File): Promise<number> {
-  const buffer = await file.arrayBuffer();
-  const text = new TextDecoder("latin1").decode(new Uint8Array(buffer));
-  const matches = text.match(/\/Type\s*\/Page\b(?!s)/g);
-  return matches ? matches.length : 0;
+  try {
+    const doc = await PDFDocument.load(await file.arrayBuffer(), {
+      ignoreEncryption: true,
+    });
+    return doc.getPageCount();
+  } catch {
+    // Fall back to a rough textual count for unusual PDFs.
+    const text = new TextDecoder("latin1").decode(
+      new Uint8Array(await file.arrayBuffer())
+    );
+    const matches = text.match(/\/Type\s*\/Page\b(?!s)/g);
+    return matches ? matches.length : 0;
+  }
 }
 
 function formatFileSize(bytes: number): string {
@@ -101,4 +121,4 @@ export function validatePdfFiles(files: File[]): string | null {
       return `${f.name} exceeds 50 MB limit.`;
   }
   return null;
-}
+}

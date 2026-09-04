@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import { Wrench, Menu, X, ChevronDown, Search, Command } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
@@ -13,6 +14,7 @@ import { CATEGORY_LIST } from "@/lib/categories";
 
 export function Header() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [categoriesOpen, setCategoriesOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
@@ -117,6 +119,25 @@ export function Header() {
               </kbd>
             </Button>
 
+            {/* Account: sign in, or sign out when authenticated */}
+            {session?.user ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => void signOut({ callbackUrl: "/" })}
+                title={session.user.email ?? "Sign out"}
+              >
+                Sign out
+              </Button>
+            ) : (
+              <Link href="/login">
+                <Button variant="outline" size="sm" className="h-8 text-xs">
+                  Sign in
+                </Button>
+              </Link>
+            )}
+
             <ThemeToggle />
 
             {/* Mobile search */}
@@ -178,6 +199,21 @@ export function Header() {
             <Link href="/about" onClick={() => setMobileOpen(false)}>
               <Button variant="ghost" className="w-full justify-start">About</Button>
             </Link>
+            {session?.user ? (
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => void signOut({ callbackUrl: "/" })}
+              >
+                Sign out
+              </Button>
+            ) : (
+              <Link href="/login" onClick={() => setMobileOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start">
+                  Sign in
+                </Button>
+              </Link>
+            )}
           </div>
         )}
       </header>

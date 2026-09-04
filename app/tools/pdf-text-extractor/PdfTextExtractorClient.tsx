@@ -4,6 +4,7 @@ import * as React from "react";
 import { getTool } from "@/lib/registry";
 import { FileOutput, Upload, AlertTriangle } from "lucide-react";
 import { extractPdfText, validatePdfForExtraction, ExtractionResult } from "@/lib/tools/pdf-text-extract";
+import { analytics } from "@/lib/analytics";
 import { ToolPageLayout } from "@/components/tool/ToolPageLayout";
 import { CopyButton } from "@/components/tool/CopyButton";
 import { Button } from "@/components/ui/button";
@@ -21,11 +22,15 @@ export default function PdfTextExtractorClient(props: PdfTextExtractorClientProp
   const handleFile = async (f: File) => {
     const err = validatePdfForExtraction(f);
     if (err) { setError(err); return; }
+    // Funnel: file_uploaded → file_processed (result is text, not a file).
+    analytics.fileUploaded(tool.slug, f);
+    const startedAt = Date.now();
     setError(null);
     setLoading(true);
     try {
       const r = await extractPdfText(f);
       setResult(r);
+      analytics.fileProcessed(tool.slug, Date.now() - startedAt);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to extract text");
     }

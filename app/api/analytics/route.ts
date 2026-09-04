@@ -1,150 +1,109 @@
 // ──────────────────────────────────────────────────────
 // ToolNest — Analytics Event Ingestion API
-// Receives batched events from the client
+//
+// POST /api/analytics
+//   Receives batched events from the client tracker.
+//   Body: { events: unknown[] }
+//
+// Privacy contract (enforced here, not just by the client):
+//   - only event names in the shared registry are accepted
+//   - each event may carry ONLY the attributes its spec allowlists
+//     (lib/analytics/events.ts); everything else is dropped
+//   - no IPs, headers, user agents, or personal data are stored
+//
+// GET /api/analytics
+//   Introspection: storage mode, event catalog, funnel definitions —
+//   handy for dashboards and developer tooling.
 // ──────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
+import {
+  ANALYTICS_EVENT_NAMES,
+  ANALYTICS_EVENT_SPECS,
+  ANALYTICS_FUNNELS,
+  sanitizeAnalyticsEvent,
+} from "@/lib/analytics/events";
+import {
+  getAnalyticsStorageMode,
+  ingestAnalyticsEvents,
+} from "@/lib/analytics/server";
 
-// ── Rate Limiting (simple in-memory) ────────────────
+const MAX_BATCH_SIZE = 50; // must stay >= client MAX_BATCH_SIZE (20)
+
+// ── Basic abuse guard ────────────────────────────────
+// In-memory per-instance limiter. Suitable as a coarse guard; for
+// multi-instance deployments add a shared (e.g. Upstash/DB) limiter.
+// The request IP is used only as a limiter key — never stored/logged.
 
 const rateLimit = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 100; // max requests per window per IP
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 100;
 
-function checkRateLimit(ip: string): boolean {
+function checkRateLimit(key: string): boolean {
   const now = Date.now();
-  const entry = rateLimit.get(ip);
-
+  const entry = rateLimit.get(key);
   if (!entry || now > entry.resetAt) {
-    rateLimit.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    rateLimit.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
-
-  if (entry.count >= RATE_LIMIT_MAX) {
-    return false;
-  }
-
-  entry.count++;
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count += 1;
   return true;
 }
 
-// ── Event Validation ────────────────────────────────
-
-const VALID_EVENTS = new Set([
-  "tool_opened",
-  "tool_completed",
-  "calculation_completed",
-  "result_copied",
-  "file_uploaded",
-  "file_processed",
-  "file_downloaded",
-  "tool_searched",
-  "search_result_clicked",
-]);
-
-interface IncomingEvent {
-  event?: string;
-  timestamp?: number;
-  sessionId?: string;
-  toolSlug?: string;
-  page?: string;
-  [key: string]: unknown;
-}
-
-function validateEvent(event: unknown): event is IncomingEvent {
-  if (!event || typeof event !== "object") return false;
-  const e = event as Record<string, unknown>;
-  if (!e.event || typeof e.event !== "string") return false;
-  if (!VALID_EVENTS.has(e.event)) return false;
-  if (e.timestamp && typeof e.timestamp !== "number") return false;
-  if (e.sessionId && typeof e.sessionId !== "string") return false;
-  return true;
-}
-
-// ── POST Handler ────────────────────────────────────
-
-/**
- * POST /api/analytics
- * Receives a batch of analytics events.
- * Body: { events: AnalyticsEvent[] }
- *
- * Events are validated, sanitized, and stored.
- * No PII is collected — only anonymous behavioral data.
- */
+/** POST /api/analytics — ingest a batch of sanitized events. */
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit check
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0] ??
+    const limiterKey =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       request.headers.get("x-real-ip") ??
       "unknown";
-
-    if (!checkRateLimit(ip)) {
+    if (!checkRateLimit(limiterKey)) {
       return NextResponse.json(
         { error: "Rate limit exceeded" },
         { status: 429 }
       );
     }
 
-    // Parse body
-    const body = await request.json();
-    const { events } = body;
+    let body: { events?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON body" },
+        { status: 400 }
+      );
+    }
 
+    const events = body?.events;
     if (!Array.isArray(events)) {
       return NextResponse.json(
         { error: "events must be an array" },
         { status: 400 }
       );
     }
-
-    // Limit batch size
-    if (events.length > 50) {
+    if (events.length === 0) {
+      return NextResponse.json({ received: 0, stored: 0, mode: getAnalyticsStorageMode() });
+    }
+    if (events.length > MAX_BATCH_SIZE) {
       return NextResponse.json(
-        { error: "Batch too large (max 50 events)" },
+        { error: `Batch too large (max ${MAX_BATCH_SIZE} events)` },
         { status: 400 }
       );
     }
 
-    // Validate and sanitize events
-    const validEvents = events.filter(validateEvent);
+    // Allowlist validation: drops unknown event names and every
+    // attribute not declared for the event. Nothing else is kept.
+    const sanitized = events
+      .map(sanitizeAnalyticsEvent)
+      .filter((e): e is NonNullable<typeof e> => e !== null);
 
-    if (validEvents.length === 0) {
-      return NextResponse.json({ received: 0, stored: 0 });
-    }
-
-    // Sanitize: strip unexpected fields, enforce types
-    const sanitized = validEvents.map((e) => ({
-      event: e.event,
-      timestamp: typeof e.timestamp === "number" ? e.timestamp : Date.now(),
-      sessionId: typeof e.sessionId === "string" ? e.sessionId.slice(0, 64) : null,
-      toolSlug: typeof e.toolSlug === "string" ? e.toolSlug.slice(0, 100) : null,
-      page: typeof e.page === "string" ? e.page.slice(0, 200) : null,
-      // Include additional metadata fields
-      ...Object.fromEntries(
-        Object.entries(e)
-          .filter(([k]) => !["event", "timestamp", "sessionId", "toolSlug", "page"].includes(k))
-          .filter(([, v]) => typeof v === "string" || typeof v === "number" || typeof v === "boolean")
-          .map(([k, v]) => [k, typeof v === "string" ? v.slice(0, 200) : v])
-      ),
-    }));
-
-    // ── Store Events ──────────────────────────────────
-    // For now, log to console in development.
-    // In production, write to:
-    //   - PostgreSQL (via the existing Prisma setup)
-    //   - ClickHouse / BigQuery for analytics
-    //   - Or a third-party analytics service
-
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[Analytics] ${sanitized.length} events:`, sanitized);
-    }
-
-    // TODO: Insert into database
-    // await prisma.analyticsEvent.createMany({ data: sanitized });
+    const result = await ingestAnalyticsEvents(sanitized);
 
     return NextResponse.json({
       received: events.length,
-      stored: sanitized.length,
+      stored: result.stored,
+      mode: result.mode,
     });
   } catch (error) {
     console.error("[Analytics] Error processing events:", error);
@@ -155,13 +114,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * GET /api/analytics
- * Health check endpoint.
- */
+/** GET /api/analytics — event catalog + funnel definitions for tooling. */
 export async function GET() {
   return NextResponse.json({
     status: "ok",
-    events: Object.values(VALID_EVENTS),
+    storageMode: getAnalyticsStorageMode(),
+    eventCatalog: ANALYTICS_EVENT_NAMES.map((name) => ({
+      event: name,
+      description: ANALYTICS_EVENT_SPECS[name].description,
+      attributes: Object.keys(ANALYTICS_EVENT_SPECS[name].attributes),
+    })),
+    funnels: ANALYTICS_FUNNELS,
+    docs: "docs/analytics.md (repo)",
   });
 }

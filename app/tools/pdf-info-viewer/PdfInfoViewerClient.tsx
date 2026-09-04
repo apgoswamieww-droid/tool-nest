@@ -4,6 +4,7 @@ import * as React from "react";
 import { getTool } from "@/lib/registry";
 import { FileSearch, Upload, AlertTriangle } from "lucide-react";
 import { extractPdfInfo, validatePdfFile, PdfInfo } from "@/lib/tools/pdf-info";
+import { analytics } from "@/lib/analytics";
 import { ToolPageLayout } from "@/components/tool/ToolPageLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,12 +22,16 @@ export default function PdfInfoViewerClient(props: PdfInfoViewerClientProps) {
   const handleFile = async (f: File) => {
     const err = validatePdfFile(f);
     if (err) { setError(err); return; }
+    // Funnel: file_uploaded → file_processed (viewer has no download step).
+    analytics.fileUploaded(tool.slug, f);
+    const startedAt = Date.now();
     setError(null);
     setFile(f);
     setLoading(true);
     try {
       const result = await extractPdfInfo(f);
       setInfo(result);
+      analytics.fileProcessed(tool.slug, Date.now() - startedAt);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to read PDF");
     }

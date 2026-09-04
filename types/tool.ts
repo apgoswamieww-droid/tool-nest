@@ -1,5 +1,8 @@
 import { LucideIcon } from "lucide-react";
 
+/** Access tier of a tool. Absent = "free". */
+export type ToolTier = "free" | "premium";
+
 /**
  * Represents a single tool in the ToolNest registry.
  * Each tool maps to a page at /tools/{slug}/
@@ -25,6 +28,13 @@ export interface Tool {
   featured?: boolean;
   /** Deprecated tools still accessible but not shown in listings */
   deprecated?: boolean;
+  /**
+   * Access tier (default "free"). Premium tools get gated pages + a
+   * badge once the R1 monetization layer lands (docs/monetization.md).
+   * The registry declares intent only — nothing filters on this yet,
+   * so free listings are unaffected until gating ships.
+   */
+  tier?: ToolTier;
 }
 
 /** All valid category slugs — derived from CATEGORY_REGISTRY */

@@ -7,6 +7,7 @@ import { Card, CardContent } from "./card";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/pdf/validators";
 import { analytics } from "@/lib/analytics";
+import { useToolSlug } from "@/components/tool/AnalyticsProvider";
 
 interface PdfDropzoneProps {
   onFile: (file: File) => void;
@@ -15,7 +16,7 @@ interface PdfDropzoneProps {
   error?: string | null;
   label?: string;
   description?: string;
-  /** Tool slug for analytics tracking */
+  /** Optional explicit tool slug; defaults to the active tool context. */
   toolSlug?: string;
 }
 
@@ -26,10 +27,12 @@ export function PdfDropzone({
   error,
   label = "Drop a PDF file here",
   description = "or click to browse",
-  toolSlug,
+  toolSlug: toolSlugProp,
 }: PdfDropzoneProps) {
   const [isDragOver, setIsDragOver] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  // Resolve from the AnalyticsProvider context (every tool page) or the URL.
+  const toolSlug = useToolSlug(toolSlugProp);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -43,10 +46,7 @@ export function PdfDropzone({
     setIsDragOver(false);
     const file = e.dataTransfer.files[0];
     if (file) {
-      // Track file upload
-      if (toolSlug) {
-        analytics.fileUploaded(toolSlug, file);
-      }
+      if (toolSlug) analytics.fileUploaded(toolSlug, file);
       onFile(file);
     }
   };
@@ -56,10 +56,7 @@ export function PdfDropzone({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Track file upload
-      if (toolSlug) {
-        analytics.fileUploaded(toolSlug, file);
-      }
+      if (toolSlug) analytics.fileUploaded(toolSlug, file);
       onFile(file);
     }
     e.target.value = "";

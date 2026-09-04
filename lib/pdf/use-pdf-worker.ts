@@ -9,6 +9,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ProcessResult, ProcessingState } from "./types";
+import { useAnalytics } from "@/components/tool/AnalyticsProvider";
+import { analytics } from "@/lib/analytics";
 
 let workerInstance: Worker | null = null;
 let requestCounter = 0;
@@ -197,6 +199,9 @@ export function usePdfWorker(): UsePdfWorkerReturn {
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef<string | null>(null);
   const resolveRef = useRef<(result: ProcessResult) => void | null>(null);
+  const startAtRef = useRef<number>(0);
+  // Tool-scoped context provided by <AnalyticsProvider /> on tool pages.
+  const { toolSlug } = useAnalytics();
 
   useEffect(() => {
     return () => {
@@ -221,6 +226,7 @@ export function usePdfWorker(): UsePdfWorkerReturn {
         const id = `req-${++requestCounter}`;
         requestIdRef.current = id;
         resolveRef.current = resolve;
+        startAtRef.current = Date.now();
 
         setState({ status: "processing", progress: 0, message: "Starting…" });
 
@@ -247,6 +253,13 @@ export function usePdfWorker(): UsePdfWorkerReturn {
                 progress: 100,
                 message: "Processing complete",
               });
+              // Funnel: file_uploaded → file_processed → file_downloaded.
+              if (toolSlug) {
+                analytics.fileProcessed(
+                  toolSlug,
+                  Date.now() - startAtRef.current
+                );
+              }
               resolve(msg.result);
               break;
 
@@ -267,7 +280,7 @@ export function usePdfWorker(): UsePdfWorkerReturn {
         worker.postMessage({ type: "process", id, operation, payload });
       });
     },
-    [isSupported]
+    [isSupported, toolSlug]
   );
 
   const cancel = useCallback(() => {

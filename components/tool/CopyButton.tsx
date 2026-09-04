@@ -5,6 +5,7 @@ import { Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { analytics } from "@/lib/analytics";
+import { useToolSlug } from "./AnalyticsProvider";
 
 interface CopyButtonProps {
   text: string;
@@ -12,7 +13,7 @@ interface CopyButtonProps {
   label?: string;
   size?: "default" | "sm" | "lg" | "icon";
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
-  /** Tool slug for analytics tracking */
+  /** Optional explicit tool slug; defaults to the active tool context. */
   toolSlug?: string;
 }
 
@@ -22,21 +23,24 @@ export function CopyButton({
   label = "Copy",
   size = "sm",
   variant = "outline",
-  toolSlug,
+  toolSlug: toolSlugProp,
 }: CopyButtonProps) {
   const [copied, setCopied] = React.useState(false);
+  // Resolve from the AnalyticsProvider context (every tool page) or the URL.
+  const toolSlug = useToolSlug(toolSlugProp);
+
+  const markCopied = React.useCallback(() => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    // Track result copied once on success (both clipboard paths).
+    if (toolSlug) analytics.resultCopied(toolSlug, text.length);
+  }, [toolSlug, text]);
 
   const handleCopy = React.useCallback(async () => {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-
-      // Track result copied
-      if (toolSlug) {
-        analytics.resultCopied(toolSlug, text.length);
-      }
+      markCopied();
     } catch {
       // Fallback for older browsers
       const textarea = document.createElement("textarea");
@@ -47,15 +51,9 @@ export function CopyButton({
       textarea.select();
       document.execCommand("copy");
       document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-
-      // Track result copied (fallback path)
-      if (toolSlug) {
-        analytics.resultCopied(toolSlug, text.length);
-      }
+      markCopied();
     }
-  }, [text, toolSlug]);
+  }, [text, markCopied]);
 
   return (
     <Button

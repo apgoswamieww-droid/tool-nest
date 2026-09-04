@@ -74,8 +74,12 @@ export function SearchBar({
         window.location.href = s.slug;
       }
     } else if (query.trim()) {
-      // Track search performed
-      analytics.toolSearched(query.trim(), suggestions.length);
+      // Track search performed — query length & result count only,
+      // never the raw query text (privacy-conscious by design).
+      analytics.toolSearched({
+        queryLength: query.trim().length,
+        resultCount: suggestions.length,
+      });
       window.location.href = `/tools?q=${encodeURIComponent(query.trim())}`;
     }
   };

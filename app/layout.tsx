@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "@/components/layout/Providers";
+import { MonetizationProvider } from "@/components/monetization/MonetizationProvider";
+import { resolveMonetizationClientBundle } from "@/lib/monetization";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { getHomeMetadata } from "@/lib/seo";
@@ -23,6 +25,10 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Server-resolved monetization state (flags + tier). Anonymous for
+  // now — R1 reads the session here. Never passes secrets to the client.
+  const monetizationBundle = resolveMonetizationClientBundle();
+
   return (
     <html
       lang="en"
@@ -31,9 +37,11 @@ export default function RootLayout({
     >
       <body className="min-h-screen flex flex-col font-sans antialiased">
         <Providers>
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
+          <MonetizationProvider bundle={monetizationBundle}>
+            <Header />
+            <main className="flex-1">{children}</main>
+            <Footer />
+          </MonetizationProvider>
         </Providers>
       </body>
     </html>

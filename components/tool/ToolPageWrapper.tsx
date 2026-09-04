@@ -8,6 +8,7 @@ import {
   generateFaqSchema,
 } from "@/lib/seo";
 import { getToolFaq } from "@/lib/tool-metadata";
+import { AnalyticsProvider } from "./AnalyticsProvider";
 
 interface ToolPageWrapperProps {
   tool: Tool;
@@ -79,7 +80,10 @@ export function ToolPageWrapper({
         />
       )}
 
-      {children}
+      {/* Tool-scoped analytics: fires tool_opened and lets every child
+          component (copy buttons, result panels, dropzones, workers)
+          emit events without prop-drilling the slug. */}
+      <AnalyticsProvider toolSlug={tool.slug}>{children}</AnalyticsProvider>
     </>
   );
 }

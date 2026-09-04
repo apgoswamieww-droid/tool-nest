@@ -8,6 +8,8 @@ export interface CreateUserInput {
   email: string;
   name?: string;
   image?: string;
+  /** bcrypt hash (see lib/password.ts). Null/omitted for OAuth-only accounts. */
+  passwordHash?: string;
 }
 
 /**
@@ -20,6 +22,7 @@ export async function createUser(input: CreateUserInput) {
       email: input.email,
       name: input.name,
       image: input.image,
+      passwordHash: input.passwordHash,
       preferences: {
         create: {},
       },
