@@ -3,6 +3,7 @@ import { Tool } from "@/types";
 import { ToolHeader } from "./ToolHeader";
 import { RelatedTools } from "./RelatedTools";
 import { FAQSection } from "./FAQSection";
+import { AdSlot } from "@/components/monetization/AdSlot";
 import { getRelatedToolsScored } from "@/lib/related";
 import { getCategory } from "@/lib/categories";
 import { getToolFaq } from "@/lib/tool-metadata";
@@ -33,6 +34,10 @@ export function ToolPageLayout({ tool, children, faqItems }: ToolPageLayoutProps
       <div className="mt-8">
         {children}
       </div>
+
+      {/* House ad slot — below the tool, above related content (R2).
+          Renders nothing while the ads.enabled flag is off. */}
+      <AdSlot placement="tool-below" />
 
       {/* Related Tools */}
       {relatedTools.length > 0 && (

@@ -30,11 +30,16 @@ export interface Tool {
   deprecated?: boolean;
   /**
    * Access tier (default "free"). Premium tools get gated pages + a
-   * badge once the R1 monetization layer lands (docs/monetization.md).
-   * The registry declares intent only — nothing filters on this yet,
-   * so free listings are unaffected until gating ships.
+   * badge (docs/monetization.md). Premium entries stay visible in
+   * listings — merchandised with a lock badge, not hidden.
    */
   tier?: ToolTier;
+  /**
+   * Value bullets shown on the premium gate / marketing surface.
+   * Present only on premium tools; describes what the paid version
+   * unlocks so the upgrade prompt sells capability, not hype.
+   */
+  premiumFeatures?: string[];
 }
 
 /** All valid category slugs — derived from CATEGORY_REGISTRY */

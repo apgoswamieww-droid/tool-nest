@@ -7,6 +7,7 @@ import { ToolGrid } from "@/components/tool/ToolGrid";
 import { CategoryCard } from "@/components/tool/CategoryCard";
 import { PopularTools } from "@/components/tool/PopularTools";
 import { RecentlyAdded } from "@/components/tool/RecentlyAdded";
+import { AdSlot } from "@/components/monetization/AdSlot";
 import { getFeaturedTools, getAllTools } from "@/lib/registry";
 import { getPopularTools, getRecentlyAddedTools, getToolCountByCategory } from "@/lib/search";
 import { CATEGORY_LIST } from "@/lib/categories";
@@ -116,6 +117,12 @@ export default function HomePage() {
         </div>
         <ToolGrid tools={featuredTools} />
       </section>
+
+      {/* House ad slot — after featured, before popular (R2). Renders
+          nothing while the ads.enabled flag is off. */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <AdSlot placement="home-below-featured" />
+      </div>
 
       {/* ═══ Popular + Recently Added ═══ */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 border-t">

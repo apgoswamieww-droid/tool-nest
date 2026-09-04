@@ -406,3 +406,59 @@ Nothing in this design requires changing how a free tool computes,
 which is the point: monetization is an envelope around the registry,
 the layout, and the data layer — not a modification of the tools
 themselves.
+
+---
+
+## 8. Implementation status
+
+Shipped so far (tracked live in the repo):
+
+- **R0 — Foundations.** `lib/monetization/` (config tiers + limits,
+  feature flags with safe defaults + `TOOLNEST_FLAG_*` env overrides,
+  entitlements, server→client bundle), `Tool.tier`/`premiumFeatures`
+  fields, `<MonetizationProvider>` in the root layout, monetization
+  events registered in the analytics registry.
+- **R1 (part 1) — Real accounts.** `User.passwordHash` + `User.plan`,
+  bcrypt hashing (`lib/password.ts`), rewritten Credentials provider,
+  `/api/auth/register`, `/login` page (sign in + create account),
+  `SessionProvider`, Header sign-in/sign-out.
+- **R1 (part 2) — First premium tools.** `json-formatter` and
+  `hash-generator` shipped as fully built premium tools, marked
+  `tier: "premium"` in the registry, with listings badges
+  (`components/monetization/PremiumBadge`), a server-side gate
+  (`components/tool/PremiumToolPage` →
+  `resolveSessionEntitlements()` reading `User.plan`), and the locked
+  upgrade surface (`components/monetization/PremiumGate`).
+
+  Dev preview before checkout exists:
+
+  ```bash
+  PREMIUM_DEV_TIER=premium npm run dev
+  ```
+
+  (Honored only when `NODE_ENV !== "production"`; production always
+  reads the signed-in user's plan.)
+- **R2 — House ads.** `lib/monetization/ads.ts` (placement registry
+  with fixed pixel heights, house creative catalog, deterministic
+  `decideAdSlot` gate) and `<AdSlot placement=… />`, mounted on every
+  tool page (`tool-below`), the homepage (`home-below-featured`) and
+  category pages (`category-inline`). `result-side` is registered but
+  not mounted (reserved for per-tool result ads).
+
+  Everything renders nothing while `ads.enabled` is false (default —
+  the kill switch) and for entitled users (`adFree`). Premium tool
+  pages never advertise other premium tools. `ad_shown`/`ad_clicked`
+  fire through the analytics registry and respect opt-out/DNT/GPC.
+
+  Enable with the flag; note that statically prerendered routes bake
+  the value at build time — flip the env and rebuild (a runtime DB
+  override layer is the follow-up that makes it deploy-free).
+
+  ```bash
+  TOOLNEST_FLAG_ADS_ENABLED=true npm run build && npm start
+  ```
+
+Remaining R1: billing adapter + webhook that flips `User.plan`
+(swap the gate's signed-in CTA and the `Activate Premium` button for
+the checkout route when it lands), and the first premium power-up
+(limits lift) on a free tool.

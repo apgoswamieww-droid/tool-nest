@@ -8,6 +8,7 @@ import { getCategoryMetadata, generateCategoryBreadcrumbs, generateFaqSchema } f
 import { SITE_URL } from "@/lib/utils";
 import { ToolGrid } from "@/components/tool/ToolGrid";
 import { ToolCard } from "@/components/tool/ToolCard";
+import { AdSlot } from "@/components/monetization/AdSlot";
 import { CategoryCard } from "@/components/tool/CategoryCard";
 import { FAQSection } from "@/components/tool/FAQSection";
 import { Badge } from "@/components/ui/badge";
@@ -156,6 +157,12 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
           emptyMessage={`No tools in ${category.name} yet. Check back soon!`}
         />
       </section>
+
+      {/* House ad slot — between the tool grid and the content below (R2).
+          Renders nothing while the ads.enabled flag is off. */}
+      <div className="mb-12">
+        <AdSlot placement="category-inline" />
+      </div>
 
       {/* How-To / Educational Content */}
       <section className="mb-12">
