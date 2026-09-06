@@ -211,7 +211,7 @@ export function LoginForm() {
 
           <p className="mt-4 text-center text-xs text-muted-foreground">
             All tools work without an account — signing in only adds
-            saved results, favorites, and premium features.
+            saved results and favorites.
           </p>
         </CardContent>
       </Card>

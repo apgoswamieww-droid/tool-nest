@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Wrench, Menu, X, ChevronDown, Search, Command } from "lucide-react";
+import { Wrench, Menu, X, ChevronDown, Search, Command, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
 import { CommandPalette } from "@/components/search/CommandPalette";
@@ -120,6 +120,18 @@ export function Header() {
             </Button>
 
             {/* Account: sign in, or sign out when authenticated */}
+            {session?.user && (
+              <Link href="/account" title="My account">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label="My account"
+                >
+                  <User className="h-4 w-4" />
+                </Button>
+              </Link>
+            )}
             {session?.user ? (
               <Button
                 variant="ghost"
@@ -199,6 +211,13 @@ export function Header() {
             <Link href="/about" onClick={() => setMobileOpen(false)}>
               <Button variant="ghost" className="w-full justify-start">About</Button>
             </Link>
+            {session?.user && (
+              <Link href="/account" onClick={() => setMobileOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start">
+                  My account
+                </Button>
+              </Link>
+            )}
             {session?.user ? (
               <Button
                 variant="ghost"

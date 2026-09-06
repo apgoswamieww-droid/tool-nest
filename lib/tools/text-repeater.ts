@@ -11,8 +11,9 @@ export interface RepeatResult {
   lineCount: number;
 }
 
-const MAX_REPEAT = 10000;
-const MAX_TEXT_LENGTH = 10000;
+/** Shared with the API edge (lib/api/registry.ts) — never diverge. */
+export const MAX_REPEAT = 10000;
+export const MAX_TEXT_LENGTH = 10000;
 
 export function repeatText(options: RepeatOptions): RepeatResult {
   const { text, count, separator, lineBreak } = options;

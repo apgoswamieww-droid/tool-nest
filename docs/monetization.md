@@ -8,6 +8,16 @@ This document is a *design*, not an implementation. It names the exact
 files, components, and schema changes each stream needs so the work can
 be sliced into reviewable increments.
 
+> **Product decision — ToolNest is free.** No billing, checkout, or
+> payment integrations will be built; the paid-tier and subscription
+> designs in this document are **archived for reference only**.
+> Premium gating has been removed — every tool, including
+> `json-formatter` and `hash-generator`, is free for everyone. The
+> non-payment infrastructure that already shipped (feature flags,
+> house-ads components, analytics events, `User.plan`) stays in the
+> tree and may still be used in free forms — e.g. house ads as
+> cross-promotion, or optional rate-limited API keys.
+
 ---
 
 ## 1. Principles (non-negotiable)
@@ -237,6 +247,9 @@ out, for the subset of `lib/tools/*` functions that are server-portable
 the `pdf.js`-worker tools are not server-portable as written and stay
 out of v1 or get re-implemented). This also gives us a *server-side*
 compute path for the few features that genuinely need authority.
+The concrete endpoint shape is refined by `docs/api-platform.md`:
+operation-style paths such as `/api/v1/text/repeat` (same key,
+quota, and metering mechanics as sketched here).
 
 **Mechanics:**
 
@@ -376,7 +389,7 @@ state — the UI never trusts its own checkout calls.
 | **R1 — Premium (consumer)** | `/login` with real auth (password hashing or OAuth), billing adapter + webhook, `resolveEntitlements`, premium badge + ad-free, first premium power-up (e.g. PDF batch / 200 MB), first premium tool built from an unbuilt registry slug | R0 |
 | **R2 — House ads** | `<AdSlot>`, placement registry, house-ad campaign (cross-promo), ad-free for premium, funnel measurement | R0 |
 | **R3 — Affiliates** | `<AffiliateLink>` + catalog + disclosure, `ad_clicked` reporting | R0 |
-| **R4 — API & business** | `ApiKey`/`ApiUsageLog`/`Organization` models, `/api/v1/tools/{slug}` for portable tools, `/developers`, team workspace | R1 |
+| **R4 — API & business** | `ApiKey`/`ApiUsageLog`/`Organization` models, the `/api/v1` platform (see `docs/api-platform.md`) for portable tools, `/developers`, team workspace | R1 |
 | **R5 — Networks** | Optional third-party ad/affiliate networks behind flags, after consent banner exists | R2/R3 + privacy review |
 
 Quick wins are front-loaded: R0 + R1's first power-up are the smallest
@@ -413,31 +426,17 @@ themselves.
 
 Shipped so far (tracked live in the repo):
 
-- **R0 — Foundations.** `lib/monetization/` (config tiers + limits,
-  feature flags with safe defaults + `TOOLNEST_FLAG_*` env overrides,
-  entitlements, server→client bundle), `Tool.tier`/`premiumFeatures`
-  fields, `<MonetizationProvider>` in the root layout, monetization
-  events registered in the analytics registry.
-- **R1 (part 1) — Real accounts.** `User.passwordHash` + `User.plan`,
-  bcrypt hashing (`lib/password.ts`), rewritten Credentials provider,
-  `/api/auth/register`, `/login` page (sign in + create account),
-  `SessionProvider`, Header sign-in/sign-out.
-- **R1 (part 2) — First premium tools.** `json-formatter` and
-  `hash-generator` shipped as fully built premium tools, marked
-  `tier: "premium"` in the registry, with listings badges
-  (`components/monetization/PremiumBadge`), a server-side gate
-  (`components/tool/PremiumToolPage` →
-  `resolveSessionEntitlements()` reading `User.plan`), and the locked
-  upgrade surface (`components/monetization/PremiumGate`).
-
-  Dev preview before checkout exists:
-
-  ```bash
-  PREMIUM_DEV_TIER=premium npm run dev
-  ```
-
-  (Honored only when `NODE_ENV !== "production"`; production always
-  reads the signed-in user's plan.)
+- **R0 — Foundations (ads-only today).** `lib/monetization/` ships the
+  `ads.enabled` / `ads.network` flags (both with safe defaults) and
+  `TOOLNEST_FLAG_*` env overrides, plus a slim server→client bundle
+  via `<MonetizationProvider>` in the root layout. The tier/plan/
+  limits machinery this step originally described is gone — removed in
+  the free pivot (see the superseded note below).
+- **R1 — Real accounts.** `User.passwordHash`, bcrypt hashing
+  (`lib/password.ts`), rewritten Credentials provider,
+  `/api/auth/register`, the `/login` page (sign in + create account),
+  `SessionProvider`, and Header sign-in/sign-out. No plans or tiers —
+  accounts exist for saved results and favorites.
 - **R2 — House ads.** `lib/monetization/ads.ts` (placement registry
   with fixed pixel heights, house creative catalog, deterministic
   `decideAdSlot` gate) and `<AdSlot placement=… />`, mounted on every
@@ -446,9 +445,8 @@ Shipped so far (tracked live in the repo):
   not mounted (reserved for per-tool result ads).
 
   Everything renders nothing while `ads.enabled` is false (default —
-  the kill switch) and for entitled users (`adFree`). Premium tool
-  pages never advertise other premium tools. `ad_shown`/`ad_clicked`
-  fire through the analytics registry and respect opt-out/DNT/GPC.
+  the kill switch). `ad_shown`/`ad_clicked` fire through the analytics
+  registry and respect opt-out/DNT/GPC.
 
   Enable with the flag; note that statically prerendered routes bake
   the value at build time — flip the env and rebuild (a runtime DB
@@ -458,7 +456,12 @@ Shipped so far (tracked live in the repo):
   TOOLNEST_FLAG_ADS_ENABLED=true npm run build && npm start
   ```
 
-Remaining R1: billing adapter + webhook that flips `User.plan`
-(swap the gate's signed-in CTA and the `Activate Premium` button for
-the checkout route when it lands), and the first premium power-up
-(limits lift) on a free tool.
+**Superseded — free product decision:** no billing adapter, webhook,
+checkout, premium tools, or premium power-ups will be built, and all
+payment-related code has been removed from the repo:
+`PremiumBadge`/`PremiumGate`/`PremiumToolPage`,
+`session-entitlements.ts`, the tier/limits modules, `Tool.tier` /
+`premiumFeatures`, and `User.plan` are deleted. `json-formatter` and
+`hash-generator` are free tools for everyone. The paid-tier design
+sections of this document are archived history — only the account
+layer (R1) and house ads (R2) are live.

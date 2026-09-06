@@ -25,8 +25,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Server-resolved monetization state (flags + tier). Anonymous for
-  // now — R1 reads the session here. Never passes secrets to the client.
+  // Server-resolved ad configuration (flags). Never passes secrets to
+  // the client.
   const monetizationBundle = resolveMonetizationClientBundle();
 
   return (

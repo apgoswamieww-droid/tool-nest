@@ -34,19 +34,11 @@ export const AnalyticsEvents = {
   TOOL_SEARCHED: "tool_searched",
   /** The user clicked a search suggestion/result. */
   SEARCH_RESULT_CLICKED: "search_result_clicked",
-  // ── Monetization (see docs/monetization.md §3.4) ──
+  // ── Ads (components/monetization/AdSlot) ──
   /** An ad slot became visible. */
   AD_SHOWN: "ad_shown",
   /** An ad or affiliate link was clicked. */
   AD_CLICKED: "ad_clicked",
-  /** A contextual upgrade prompt was shown. */
-  UPSELL_VIEWED: "upsell_viewed",
-  /** A contextual upgrade prompt was dismissed. */
-  UPSELL_DISMISSED: "upsell_dismissed",
-  /** The user reached the billing provider checkout. */
-  CHECKOUT_STARTED: "checkout_started",
-  /** A webhook-confirmed subscription/entitlement change. */
-  SUBSCRIPTION_ACTIVATED: "subscription_activated",
 } as const;
 
 export type AnalyticsEventName =
@@ -168,32 +160,6 @@ export const ANALYTICS_EVENT_SPECS: Record<
   ad_clicked: {
     description: "An ad or affiliate link was clicked.",
     attributes: { placementId: { type: "string", maxLength: 100 } },
-  },
-  upsell_viewed: {
-    description: "A contextual, dismissible upgrade prompt was shown.",
-    attributes: {
-      surface: {
-        type: "string",
-        enum: ["result", "related", "limit"] as const,
-      },
-    },
-  },
-  upsell_dismissed: {
-    description: "An upgrade prompt was dismissed without action.",
-    attributes: {
-      surface: {
-        type: "string",
-        enum: ["result", "related", "limit"] as const,
-      },
-    },
-  },
-  checkout_started: {
-    description: "The user reached the billing provider checkout.",
-    attributes: { plan: { type: "string", maxLength: 50 } },
-  },
-  subscription_activated: {
-    description: "A confirmed entitlement change (webhook).",
-    attributes: { plan: { type: "string", maxLength: 50 } },
   },
 };
 
@@ -369,17 +335,6 @@ export const ANALYTICS_FUNNELS: AnalyticsFunnel[] = [
       { label: "File uploaded", events: ["file_uploaded"] },
       { label: "File processed", events: ["file_processed"] },
       { label: "File downloaded", events: ["file_downloaded"] },
-    ],
-  },
-  {
-    id: "monetization",
-    name: "Monetization funnel",
-    description:
-      "From a contextual upgrade prompt to a confirmed subscription.",
-    steps: [
-      { label: "Upsell viewed", events: ["upsell_viewed"] },
-      { label: "Checkout started", events: ["checkout_started"] },
-      { label: "Subscription activated", events: ["subscription_activated"] },
     ],
   },
 ];

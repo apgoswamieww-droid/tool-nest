@@ -25,9 +25,6 @@ model User {
   // bcrypt hash (60 chars). Null for OAuth-only accounts; used by the
   // Credentials provider in lib/auth.ts. Never returned to clients.
   passwordHash String? @db.VarChar(100)
-  // Entitlement tier (see lib/monetization/config.ts). The future
-  // billing webhook updates this; defaults to free for new accounts.
-  plan String @default("free") @db.VarChar(20)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -36,6 +33,7 @@ model User {
   savedCalculations SavedCalculation[]
   preferences       UserPreference?
   usageHistory      ToolUsageHistory[]
+  apiKeys           ApiKey[]
 
   @@map("users")
 }
@@ -148,4 +146,55 @@ model ToolUsageHistory {
   @@index([userId, createdAt(sort: Desc)])
   @@index([toolSlug])
   @@map("tool_usage_history")
+}
+
+// ──────────────────────────────────────────────────────
+// API KEYS (public API platform, see docs/api-platform.md)
+// Keys are free — rate limits are fairness caps, not billing. Only
+// sha256 hashes of keys are stored, never the raw key; the raw key is
+// shown exactly once at issue time.
+// ──────────────────────────────────────────────────────
+
+model ApiKey {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @db.VarChar(100)
+  keyHash     String    @unique @db.VarChar(64) // sha256 hex of the full key
+  prefix      String    @db.VarChar(20) // display form: "tn_live_a1b2…wxyz"
+  quotaPerDay Int       @default(100) // daily fairness cap per key
+  userId      String    @db.Uuid
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usage ApiUsageLog[]
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// ──────────────────────────────────────────────────────
+// API USAGE LOGS
+// One row per authenticated call. Service telemetry only — never
+// request bodies, query strings, raw keys, or IPs.
+// ──────────────────────────────────────────────────────
+
+model ApiUsageLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  apiKeyId  String   @db.Uuid
+  requestId String   @db.VarChar(64)
+  route     String   @db.VarChar(200)
+  method    String   @db.VarChar(10)
+  status    Int
+  latencyMs Int?
+  createdAt DateTime @default(now())
+
+  // Relations
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  // Indexes for per-key and per-route aggregates
+  @@index([apiKeyId, createdAt(sort: Desc)])
+  @@index([route, createdAt(sort: Desc)])
+  @@map("api_usage_logs")
 }

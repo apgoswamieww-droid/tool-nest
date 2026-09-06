@@ -106,7 +106,7 @@ export const JSON_FORMATTER_SAMPLE = `{
   "name": "ToolNest",
   "tagline": "Free online tools",
   "tools": 50,
-  "premium": true,
+  "free": true,
   "categories": ["text", "developer", "pdf", "calculators"],
   "urls": {
     "site": "https://toolnest.example",

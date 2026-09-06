@@ -4,7 +4,6 @@ import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/ca
 import { Badge } from "@/components/ui/badge";
 import { Tool } from "@/types";
 import { getCategory } from "@/lib/categories";
-import { PremiumBadge } from "@/components/monetization/PremiumBadge";
 
 interface ToolCardProps {
   tool: Tool;
@@ -27,7 +26,6 @@ export function ToolCard({ tool, showCategory = true }: ToolCardProps) {
               <div>
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-base">{tool.name}</CardTitle>
-                  {tool.tier === "premium" && <PremiumBadge compact />}
                 </div>
               </div>
             </div>

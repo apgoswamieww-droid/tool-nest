@@ -41,12 +41,8 @@ attribute **allowlist** declared next to each event in
 | `file_downloaded` | A generated file is downloaded (`<a download>` click) | `toolSlug`, `fileExtension` |
 | `tool_searched` | A search is submitted | `queryLength`, `resultCount` |
 | `search_result_clicked` | A search suggestion is clicked | `resultType`, `resultSlug`, `resultPosition` |
-| `ad_shown` | An ad slot became visible (monetization) | `placementId` |
+| `ad_shown` | An ad slot became visible | `placementId` |
 | `ad_clicked` | An ad/affiliate link was clicked | `placementId` |
-| `upsell_viewed` | A contextual upgrade prompt was shown | `surface` |
-| `upsell_dismissed` | An upgrade prompt was dismissed | `surface` |
-| `checkout_started` | The user reached billing checkout | `plan` |
-| `subscription_activated` | A webhook-confirmed entitlement change | `plan` |
 
 Notes:
 
@@ -67,13 +63,10 @@ Defined in `ANALYTICS_FUNNELS` and exposed by `GET /api/analytics`:
    → `result_copied`/`file_downloaded`.
 2. **Search** — `tool_searched` → `search_result_clicked` → `tool_opened`.
 3. **File processing** — `file_uploaded` → `file_processed` → `file_downloaded`.
-4. **Monetization** — `upsell_viewed` → `checkout_started` → `subscription_activated`.
 
-The monetization events (`ad_*`, `upsell_*`, `checkout_started`,
-`subscription_activated`) are registered in the same registry and are
-emitted by the R1+ surfaces in `components/monetization/*` — see
-`docs/monetization.md` §3.4. They carry slot/plan identifiers only,
-never ad content or pricing data.
+The ad events are registered in the same registry and are emitted by
+`<AdSlot>` in `components/monetization/*`. They carry the slot
+identifier only — never ad content.
 
 ## How events are wired (reusable components)
 

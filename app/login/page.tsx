@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 /**
  * Sign in / create account. NextAuth points its `pages.signIn` at this
  * route (lib/auth.ts). Free tools never require an account — this page
- * backs the R1 premium flows (favorites, saved calculations, upgrades).
+ * backs the account layer (saved results, favorites, preferences).
  */
 export default function LoginPage() {
   return <LoginForm />;

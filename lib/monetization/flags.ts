@@ -1,26 +1,25 @@
 // ──────────────────────────────────────────────────────
-// ToolNest — Feature flags (monetization rollouts)
+// ToolNest — Feature flags (ads rollout)
 //
 // Everything defaults to OFF or the least invasive value. Resolution
 // order (highest first):
-//   1. explicit overrides — request/user context (e.g. an entitlements
-//      result forcing `ads.enabled = false` for a premium user)
+//   1. explicit overrides — request context (e.g. an entitlements
+//      result forcing `ads.enabled = false` for a given surface)
 //   2. environment      — TOOLNEST_FLAG_<UPPER_SNAKE> (ops kill switch,
 //      no deploy needed when the server reads env at runtime)
 //   3. safe default     — FLAG_DEFAULTS below
 //
-// A DB-backed override layer slots in between 1 and 2 later (R1+).
+// A DB-backed override layer slots in between 1 and 2 later.
 // Client code never evaluates flags directly — the server resolves a
-// small typed bundle (resolveMonetizationClientBundle in
-// ./entitlements.ts) and the <MonetizationProvider> exposes it. No
-// flag value here is a secret; the bundle simply keeps the client
-// surface small.
+// small typed bundle (resolveMonetizationClientBundle below) and the
+// <MonetizationProvider> exposes it. No flag value here is a secret;
+// the bundle simply keeps the client surface small.
 // ──────────────────────────────────────────────────────
 
 export type FlagValue = boolean | number | string;
 
 /**
- * All monetization flags and their safe defaults.
+ * All flags and their safe defaults.
  * Convention: `<stream>.<name>`, snake_case value names.
  */
 export const FLAG_DEFAULTS = {
@@ -28,24 +27,14 @@ export const FLAG_DEFAULTS = {
   "ads.enabled": false,
   /** Ad provider id: "house" (self-promotion) or a network adapter id. */
   "ads.network": "house",
-  /** Show the lock + "Premium" badge on premium tools (R1). */
-  "premium.showBadges": true,
-  /** Show contextual, dismissible upgrade prompts (R1). Off by default; staged rollout. */
-  "premium.showUpsells": false,
-  /** Expose the public API (R4). */
-  "api.public": false,
-  /** Enable business/team subscriptions (R4). */
-  "business.teams": false,
 } as const;
 
 export type MonetizationFlagKey = keyof typeof FLAG_DEFAULTS;
 
-/** Flags safe to hand to the browser (never api/business internals). */
+/** Flags safe to hand to the browser (currently: all of them). */
 export const CLIENT_SAFE_FLAGS: readonly MonetizationFlagKey[] = [
   "ads.enabled",
   "ads.network",
-  "premium.showBadges",
-  "premium.showUpsells",
 ];
 
 export type ClientSafeFlagKey = (typeof CLIENT_SAFE_FLAGS)[number];
@@ -76,8 +65,8 @@ function parseEnvValue(raw: string): FlagValue {
 
 /**
  * Resolve one flag: explicit overrides → environment → default.
- * Overrides win so server logic can force behavior for a user/tier
- * (e.g. premium ⇒ ads off) regardless of ops env.
+ * Overrides win so server logic can force behavior for a surface/user
+ * (e.g. ads off for opted-out contexts) regardless of ops env.
  */
 export function resolveMonetizationFlag<K extends MonetizationFlagKey>(
   key: K,
@@ -104,4 +93,29 @@ export function getClientFlagBundle(
     out[key] = resolveMonetizationFlag(key, overrides);
   }
   return out;
+}
+
+/**
+ * The typed, serializable object the client <MonetizationProvider>
+ * receives. Flat fields on purpose — components read
+ * `useMonetization().adsEnabled` without knowing flag plumbing.
+ */
+export interface MonetizationClientBundle {
+  /** Global ad rollout state (flag `ads.enabled`). Render slots only when true. */
+  adsEnabled: boolean;
+  /** Ad provider id — "house" until a network adapter is flagged on. */
+  adsNetwork: string;
+}
+
+/**
+ * Assemble the client bundle. Server-only by convention (call from the
+ * root layout); the module is pure enough that the same call yields the
+ * safe defaults if it ever runs client-side (no env there).
+ */
+export function resolveMonetizationClientBundle(): MonetizationClientBundle {
+  const flags = getClientFlagBundle();
+  return {
+    adsEnabled: flags["ads.enabled"] === true,
+    adsNetwork: String(flags["ads.network"]),
+  };
 }

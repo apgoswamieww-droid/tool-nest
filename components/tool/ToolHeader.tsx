@@ -5,6 +5,7 @@ import { ChevronRight, ExternalLink } from "lucide-react";
 import { Tool } from "@/types";
 import { Category } from "@/types";
 import { Badge } from "@/components/ui/badge";
+import { FavoriteButton } from "@/components/account/FavoriteButton";
 
 interface ToolHeaderProps {
   tool: Tool;
@@ -69,6 +70,9 @@ export function ToolHeader({ tool, category }: ToolHeaderProps) {
               </Badge>
             ))}
           </div>
+        </div>
+        <div className="flex shrink-0 items-start">
+          <FavoriteButton toolSlug={tool.slug} toolName={tool.name} />
         </div>
       </div>
     </div>

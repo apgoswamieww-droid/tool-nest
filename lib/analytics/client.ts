@@ -381,7 +381,7 @@ export const analytics = {
     });
   },
 
-  // ── Monetization (registered specs in ./events.ts) ──
+  // ── Ads (registered specs in ./events.ts) ──
 
   /** An ad slot became visible. Slot id only — never ad content. */
   adShown(placementId: string) {
@@ -396,32 +396,6 @@ export const analytics = {
     trackEvent({
       event: AnalyticsEvents.AD_CLICKED,
       placementId: placementId.slice(0, 100),
-    });
-  },
-
-  /** A contextual upgrade prompt was shown. */
-  upsellViewed(surface: "result" | "related" | "limit") {
-    trackEvent({ event: AnalyticsEvents.UPSELL_VIEWED, surface });
-  },
-
-  /** An upgrade prompt was dismissed without action. */
-  upsellDismissed(surface: "result" | "related" | "limit") {
-    trackEvent({ event: AnalyticsEvents.UPSELL_DISMISSED, surface });
-  },
-
-  /** The user reached the billing provider checkout. */
-  checkoutStarted(plan: string) {
-    trackEvent({
-      event: AnalyticsEvents.CHECKOUT_STARTED,
-      plan: plan.slice(0, 50),
-    });
-  },
-
-  /** A confirmed subscription/entitlement change (webhook side). */
-  subscriptionActivated(plan: string) {
-    trackEvent({
-      event: AnalyticsEvents.SUBSCRIPTION_ACTIVATED,
-      plan: plan.slice(0, 50),
     });
   },
 };

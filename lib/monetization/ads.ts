@@ -5,17 +5,15 @@
 //   - AD_PLACEMENTS   — the slot inventory. Every slot declares a fixed
 //     pixel height so the <AdSlot> reserves space and never shifts
 //     layout (CLS ≈ 0).
-//   - HOUSE_CREATIVES — first-party "campaigns": cross-promotions to
-//     premium tools and popular free tools. No third-party scripts,
-//     no cookies — consistent with the site's privacy stance.
+//   - HOUSE_CREATIVES — first-party "campaigns": cross-promotions
+//     between ToolNest tools. No third-party scripts, no cookies —
+//     consistent with the site's privacy stance.
 //   - decideAdSlot()  — the single gate: flag (ads.enabled) + network
-//     + entitlement (adFree) + context → creative or nothing.
+//     + context → creative or nothing.
 //
 // All decisions are deterministic (no randomness), so the server and
 // client render identical HTML and hydration never mismatches.
 // ──────────────────────────────────────────────────────
-
-import type { ToolTier } from "@/types/tool";
 
 export type AdPlacementId =
   | "tool-below"
@@ -54,9 +52,14 @@ export const AD_PLACEMENTS: Record<AdPlacementId, AdPlacementSpec> = {
   },
 };
 
+/**
+ * Creative ids double as the promoted tool's slug where the creative
+ * pitches a specific tool ("browse-tools" is generic), so a slot on a
+ * tool's own page can exclude that tool's creative automatically.
+ */
 export type HouseCreativeId =
-  | "premium-json"
-  | "premium-hash"
+  | "json-formatter"
+  | "hash-generator"
   | "pdf-merger"
   | "browse-tools";
 
@@ -64,8 +67,6 @@ export type HouseCreativeId =
 export interface HouseCreative {
   id: HouseCreativeId;
   icon: "braces" | "key" | "merge" | "compass";
-  /** Small tag shown when the creative pitches a premium tool. */
-  badge?: "Premium";
   title: string;
   body: string;
   ctaLabel: string;
@@ -74,18 +75,16 @@ export interface HouseCreative {
 
 export const HOUSE_CREATIVES: HouseCreative[] = [
   {
-    id: "premium-json",
+    id: "json-formatter",
     icon: "braces",
-    badge: "Premium",
     title: "Format JSON like a pro",
     body: "Beautify, minify and validate JSON with precise line/column errors — built for daily work.",
     ctaLabel: "Try JSON Formatter",
     href: "/tools/json-formatter",
   },
   {
-    id: "premium-hash",
+    id: "hash-generator",
     icon: "key",
-    badge: "Premium",
     title: "Instant MD5 & SHA hashes",
     body: "SHA-1/256/384/512 and MD5 computed live as you type — entirely in your browser.",
     ctaLabel: "Open Hash Generator",
@@ -109,23 +108,13 @@ export const HOUSE_CREATIVES: HouseCreative[] = [
   },
 ];
 
-/** Tool slugs that must never be advertised on their own page. */
-const CREATIVE_TOOL_SLUG: Partial<Record<HouseCreativeId, string>> = {
-  "premium-json": "json-formatter",
-  "premium-hash": "hash-generator",
-  "pdf-merger": "pdf-merger",
-};
-
 export interface AdContext {
   /** Active tool slug when the slot renders on a tool page. */
   toolSlug?: string;
-  /** Tier of the active tool (free tools show ads; premium pages don't self-advertise). */
-  toolTier?: ToolTier;
 }
 
 export interface AdSlotOptions {
   adsEnabled: boolean;
-  adFree: boolean;
   network: string;
 }
 
@@ -137,9 +126,22 @@ export interface AdSlotDecision {
 
 /** House campaigns per placement, in priority order. */
 const PLACEMENT_CREATIVES: Record<AdPlacementId, HouseCreativeId[]> = {
-  "tool-below": ["premium-json", "pdf-merger", "premium-hash", "browse-tools"],
-  "category-inline": ["premium-json", "premium-hash", "browse-tools"],
-  "home-below-featured": ["premium-json", "premium-hash", "browse-tools"],
+  "tool-below": [
+    "json-formatter",
+    "pdf-merger",
+    "hash-generator",
+    "browse-tools",
+  ],
+  "category-inline": [
+    "json-formatter",
+    "hash-generator",
+    "browse-tools",
+  ],
+  "home-below-featured": [
+    "json-formatter",
+    "hash-generator",
+    "browse-tools",
+  ],
   "result-side": ["pdf-merger", "browse-tools"],
 };
 
@@ -147,8 +149,9 @@ const PLACEMENT_CREATIVES: Record<AdPlacementId, HouseCreativeId[]> = {
  * Decide what — if anything — renders in a slot.
  *
  * Kill switch: `ads.enabled` (default false) gates everything.
- * Entitlement: premium/business/api users (`adFree`) never see ads.
  * Network: only "house" ships in R2 — other providers plug in here.
+ * Context: a tool's own page never advertises that tool back to the
+ * visitor (exclusion by slug, so it also holds for free tools).
  */
 export function decideAdSlot(
   placement: AdPlacementId,
@@ -156,22 +159,12 @@ export function decideAdSlot(
   options: AdSlotOptions
 ): AdSlotDecision | null {
   if (!options.adsEnabled) return null;
-  if (options.adFree) return null;
   if (options.network !== "house") return null; // no third-party adapters yet
 
-  const ids = PLACEMENT_CREATIVES[placement];
-  // Premium tool pages (locked or not) don't carry house ads pitching
-  // other premium tools — point those visitors at free tools instead.
-  const candidates =
-    placement === "tool-below" && context.toolTier === "premium"
-      ? ["pdf-merger", "browse-tools"]
-      : ids;
-
-  const creative = candidates
+  const creative = PLACEMENT_CREATIVES[placement]
     .map((id) => HOUSE_CREATIVES.find((c) => c.id === id))
     .find(
-      (c): c is HouseCreative =>
-        !!c && CREATIVE_TOOL_SLUG[c.id] !== context.toolSlug
+      (c): c is HouseCreative => !!c && c.id !== context.toolSlug
     );
 
   return creative

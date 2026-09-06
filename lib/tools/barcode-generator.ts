@@ -64,6 +64,9 @@ const CODE128_PATTERNS = [
 const CODE128_START_B = 104;
 const CODE128_STOP = 106;
 
+/** Max data length for the API edge and UI validator (shared, never diverge). */
+export const MAX_BARCODE_DATA_LENGTH = 80;
+
 export function generateBarcode(options: BarcodeOptions): BarcodeResult {
   const { data, format, width, height, showText, backgroundColor, barColor } = options;
 
@@ -152,7 +155,8 @@ function escapeXml(str: string): string {
 
 export function validateBarcodeInput(data: string, format: string): string | null {
   if (!data.trim()) return "Enter data to encode.";
-  if (data.length > 80) return "Data too long. Maximum 80 characters.";
+  if (data.length > MAX_BARCODE_DATA_LENGTH)
+    return "Data too long. Maximum 80 characters.";
   if (format === "ean13" && !/^\d{12,13}$/.test(data))
     return "EAN-13 requires 12 or 13 digits.";
   return null;

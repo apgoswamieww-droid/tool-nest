@@ -5,10 +5,12 @@
 //
 // One component for every placement. Behavior:
 //   - Renders NOTHING when ads are disabled (flag `ads.enabled`,
-//     default false — the kill switch), the viewer is entitled
-//     (`adFree`), or the network isn't the house adapter.
+//     default false — the kill switch) or the network isn't the house
+//     adapter.
 //   - Reserves its full slot height the moment ads are enabled, so
 //     content never shifts (no CLS).
+//   - A tool's own page never advertises that tool back to the visitor
+//     (decided in lib/monetization/ads.ts by slug).
 //   - Fires `ad_shown` the first time it scrolls into view and
 //     `ad_clicked` on activation. Both respect the analytics opt-out /
 //     DNT/GPC machinery automatically.
@@ -29,7 +31,6 @@ import {
 import { analytics } from "@/lib/analytics";
 import { useMonetization } from "./MonetizationProvider";
 import { useToolSlug } from "@/components/tool/AnalyticsProvider";
-import { getTool } from "@/lib/registry";
 import { cn } from "@/lib/utils";
 
 const CREATIVE_ICONS: Record<HouseCreative["icon"], LucideIcon> = {
@@ -45,21 +46,22 @@ interface AdSlotProps {
 }
 
 export function AdSlot({ placement, className }: AdSlotProps) {
-  const { adsEnabled, adFree, adsNetwork } = useMonetization();
+  const { adsEnabled, adsNetwork } = useMonetization();
   const toolSlug = useToolSlug();
   const viewRef = React.useRef<HTMLDivElement | null>(null);
   const shownRef = React.useRef(false);
 
   // Resolve which creative shows. Deterministic — identical HTML on the
   // server and client, so hydration never mismatches.
-  const decision = React.useMemo(() => {
-    const tool = toolSlug ? getTool(toolSlug) : undefined;
-    return decideAdSlot(
-      placement,
-      { toolSlug: toolSlug || undefined, toolTier: tool?.tier },
-      { adsEnabled, adFree, network: adsNetwork }
-    );
-  }, [placement, toolSlug, adsEnabled, adFree, adsNetwork]);
+  const decision = React.useMemo(
+    () =>
+      decideAdSlot(
+        placement,
+        { toolSlug: toolSlug || undefined },
+        { adsEnabled, network: adsNetwork }
+      ),
+    [placement, toolSlug, adsEnabled, adsNetwork]
+  );
 
   // ad_shown fires once when the slot first becomes visible.
   React.useEffect(() => {
@@ -105,14 +107,7 @@ export function AdSlot({ placement, className }: AdSlotProps) {
 
         {/* Copy */}
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-sm font-semibold">
-            {creative.title}
-            {creative.badge && (
-              <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-px text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                {creative.badge}
-              </span>
-            )}
-          </p>
+          <p className="text-sm font-semibold">{creative.title}</p>
           <p className="truncate text-xs text-muted-foreground">
             {creative.body}
           </p>
