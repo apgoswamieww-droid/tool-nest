@@ -16,6 +16,23 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Environment variables
+
+Copy the template and fill in real values before running:
+
+```bash
+cp .env.example .env.local
+```
+
+- `AUTH_SECRET` — required by Auth.js. **Without it, every `/api/auth/*` endpoint
+  fails with a 500 and the app reports a server configuration error.** Generate
+  one with:
+  `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`
+- `AUTH_TRUST_HOST=true` — needed when running behind a proxy or non-Vercel host.
+- `DATABASE_URL` — Postgres connection string for Prisma (users, favorites,
+  calculations, API keys). Register/login and account features need a real
+  database; public tools work without one.
+
 You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
