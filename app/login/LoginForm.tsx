@@ -12,7 +12,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Eye, EyeOff, Loader2, LogIn, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Loader2, LogIn, TriangleAlert, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -43,12 +43,15 @@ export function LoginForm() {
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
+  // Disposable-domain hint (register mode only): debounced server check.
+  const [disposableHint, setDisposableHint] = React.useState<string | null>(null);
 
   const switchMode = (next: Mode) => {
     setMode(next);
     setError(null);
     setPassword("");
     setShowPassword(false);
+    setDisposableHint(null);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -105,6 +108,47 @@ export function LoginForm() {
 
   const isSignIn = mode === "signin";
 
+  // Debounced disposable-domain check while typing in register mode.
+  // Aborted on unmount/new keystrokes; clears itself on sign-in mode.
+  React.useEffect(() => {
+    if (isSignIn) {
+      setDisposableHint(null);
+      return;
+    }
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes("@")) {
+      setDisposableHint(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/check-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmed }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          setDisposableHint(null);
+          return;
+        }
+        const data = (await res.json()) as { disposable?: boolean };
+        setDisposableHint(
+          data.disposable
+            ? "Disposable email addresses are not allowed. Please use a permanent email."
+            : null
+        );
+      } catch {
+        // Network hiccup — stay silent; the server still enforces on submit.
+      }
+    }, 500);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [email, isSignIn]);
+
   return (
     <div className="mx-auto max-w-md px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
       <Card>
@@ -152,7 +196,19 @@ export function LoginForm() {
                 required
                 className="mt-1.5"
                 placeholder="you@example.com"
+                aria-invalid={!!disposableHint || undefined}
+                aria-describedby={disposableHint ? "email-disposable-hint" : undefined}
               />
+              {disposableHint && (
+                <p
+                  id="email-disposable-hint"
+                  role="status"
+                  className="mt-1.5 flex items-start gap-1.5 text-xs text-destructive"
+                >
+                  <TriangleAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  {disposableHint}
+                </p>
+              )}
             </div>
 
             <div>

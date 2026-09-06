@@ -5,14 +5,23 @@
 //   Body: { email, password, name? }
 //   Hashes the password (bcrypt) and creates the account + default
 //   preferences. The client then signs in via the Credentials provider.
-//   Returns 409 when the email is already registered.
+//   Returns 422 for disposable email domains, 409 when the email is
+//   already registered.
 // ──────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { hashPassword } from "@/lib/password";
+import {
+  hashPassword,
+  validatePasswordStrength,
+} from "@/lib/password";
 import { createUser } from "@/lib/db/users";
+import { isDisposableEmail } from "@/lib/email-disposable";
+import {
+  createMemoryLimiter,
+  clientIpFromHeaders,
+} from "@/lib/rate-limit-memory";
 
 const registerSchema = z.object({
   email: z.email("Enter a valid email address"),
@@ -23,28 +32,12 @@ const registerSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
 });
 
-// Coarse per-IP limiter (single-instance guard, like lib/auth.ts).
-const REGISTER_MAX = 10;
-const REGISTER_WINDOW_MS = 60_000;
-const registerAttempts = new Map<string, { count: number; resetAt: number }>();
-
-function registerThrottled(key: string): boolean {
-  const now = Date.now();
-  const entry = registerAttempts.get(key);
-  if (!entry || now > entry.resetAt) {
-    registerAttempts.set(key, { count: 1, resetAt: now + REGISTER_WINDOW_MS });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > REGISTER_MAX;
-}
+// Coarse per-IP limiter (single-instance guard, shared with lib/auth.ts).
+const registerLimiter = createMemoryLimiter({ max: 10, windowMs: 60_000 });
 
 export async function POST(request: NextRequest) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    "unknown";
-  if (registerThrottled(ip)) {
+  const ip = clientIpFromHeaders(request.headers);
+  if (registerLimiter.check(ip)) {
     return NextResponse.json(
       { error: "Too many attempts. Try again later." },
       { status: 429 }
@@ -66,6 +59,21 @@ export async function POST(request: NextRequest) {
 
   const email = parsed.data.email.trim().toLowerCase();
   const password = parsed.data.password;
+
+  // NIST-aligned policy: length over composition, plus a common-password
+  // blocklist (bcrypt truncation is also handled in lib/password.ts).
+  const policyError = validatePasswordStrength(password);
+  if (policyError) {
+    return NextResponse.json({ error: policyError }, { status: 400 });
+  }
+
+  // Reject throwaway inbox providers before touching the database.
+  if (isDisposableEmail(email)) {
+    return NextResponse.json(
+      { error: "Disposable email addresses are not allowed. Please use a permanent email." },
+      { status: 422 }
+    );
+  }
 
   try {
     const existing = await prisma.user.findUnique({ where: { email } });

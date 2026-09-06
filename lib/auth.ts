@@ -8,27 +8,26 @@ import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { createMemoryLimiter } from "@/lib/rate-limit-memory";
 
 // ── Login throttling (coarse, in-memory) ─────────────
-// Per-email attempt limiter so brute force is impractical. Suitable as
-// a single-instance guard; move to a shared store (DB/Redis) before
-// multi-instance deploys. Keyed by the normalized email only — never
-// the raw password — and never persisted.
+// Two per-IP limits: per-email (targeted brute force) and per-IP total
+// (password spraying across many addresses). IP comes from proxy
+// headers, so a spoofable x-forwarded-for only hurts the attacker.
+// Suitable as a single-instance guard; move to a shared store before
+// multi-instance deploys. Keys are the normalized email / IP — never
+// the raw password — and nothing is persisted.
 
 const LOGIN_MAX_ATTEMPTS = 8;
 const LOGIN_WINDOW_MS = 60_000;
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-
-function isLoginThrottled(key: string): boolean {
-  const now = Date.now();
-  const entry = loginAttempts.get(key);
-  if (!entry || now > entry.resetAt) {
-    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > LOGIN_MAX_ATTEMPTS;
-}
+const loginEmailLimiter = createMemoryLimiter({
+  max: LOGIN_MAX_ATTEMPTS,
+  windowMs: LOGIN_WINDOW_MS,
+});
+const loginIpLimiter = createMemoryLimiter({
+  max: 30,
+  windowMs: LOGIN_WINDOW_MS,
+});
 
 /** Trim + lowercase an email, or null when it can't be a valid address. */
 function normalizeEmail(value: unknown): string | null {
@@ -36,6 +35,13 @@ function normalizeEmail(value: unknown): string | null {
   const email = value.trim().toLowerCase();
   return email.length > 0 && email.length <= 254 ? email : null;
 }
+
+/**
+ * Pre-computed bcrypt digest of a random string. Comparing against it
+ * on the unknown-email path burns the same CPU as a real compare, so
+ * attackers can't time-distinguish "no such user" from "wrong password".
+ */
+const DUMMY_HASH = "$2a$12$C6UzMDM.H6dfI/f/IKcEeO7ZbWyyFCDLKUkAeJ1q1S9Z8P9FvHBju";
 
 /**
  * NextAuth handler with Prisma adapter.
@@ -63,22 +69,32 @@ export const {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const email = normalizeEmail(credentials?.email);
         const password = credentials?.password;
         if (!email || typeof password !== "string" || password.length === 0) {
           return null;
         }
 
-        // Throttle per email (counts unknown addresses too, so
-        // enumeration attempts are slowed as well).
-        if (isLoginThrottled(email)) return null;
+        // Throttle per email (targeted brute force) and per IP
+        // (spraying many accounts from one host).
+        const ip =
+          request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+          request?.headers?.get("x-real-ip") ??
+          "unknown";
+        if (loginEmailLimiter.check(email) || loginIpLimiter.check(ip)) {
+          return null;
+        }
 
         const user = await prisma.user.findUnique({ where: { email } });
 
         // Unknown email and wrong password return the SAME failure so
-        // the endpoint doesn't reveal which accounts exist.
-        if (!user?.passwordHash) return null;
+        // the endpoint doesn't reveal which accounts exist. A dummy
+        // bcrypt compare equalizes response timing between the paths.
+        if (!user?.passwordHash) {
+          await verifyPassword(password, DUMMY_HASH);
+          return null;
+        }
 
         const valid = await verifyPassword(password, user.passwordHash);
         if (!valid) return null;

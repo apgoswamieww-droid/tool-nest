@@ -335,7 +335,7 @@ export const TOOL_METADATA: Record<string, ToolMetadata> = {
   // ── Travel & Shipping Tools ─────────────────────
   "currency-converter": {
     faq: [
-      { question: "Does it use live rates?", answer: "The converter uses fixed exchange rates for offline use. For live rates, check with your financial institution." },
+      { question: "Does it use live rates?", answer: "Yes — the converter uses live European Central Bank reference rates, refreshed hourly. If rates can't be fetched, it automatically falls back to a built-in recent snapshot so the tool always works. The rate date is always shown." },
     ],
   },
   "time-zone-converter": {
